@@ -20,7 +20,11 @@ import {
   buildDigest, digestIsEmpty, digestLines, todayInTZ, formatHuDate,
 } from '../js/logic.js';
 
-const env = process.env;
+// A secretek elejéről/végéről levágjuk a láthatatlan karaktereket (BOM, szóköz, sortörés),
+// amelyek pl. Windows-os vágólapról vagy PowerShellből kerülhetnek bele.
+const env = Object.fromEntries(
+  Object.entries(process.env).map(([k, v]) => [k, typeof v === 'string' ? v.replace(/^[\s﻿]+|[\s﻿]+$/g, '') : v]),
+);
 const TZ = 'Europe/Budapest';
 const FORCE = env.FORCE_SEND === 'true';
 const DRY = env.DRY_RUN === 'true';
