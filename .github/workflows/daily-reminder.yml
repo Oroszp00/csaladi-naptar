@@ -1,0 +1,62 @@
+name: Napi emlékeztető
+
+on:
+  schedule:
+    # A GitHub cron mindig UTC-ben fut. Két időpont kell, hogy télen és nyáron is
+    # 07:00 legyen Budapesten; a script csak az aktuálisan érvényeset engedi tovább.
+    - cron: '0 5 * * *'   # 07:00 CEST (nyári időszámítás)
+    - cron: '0 6 * * *'   # 07:00 CET  (téli időszámítás)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Küldés most (időkapu kihagyása, üres napon is)'
+        type: boolean
+        default: true
+      dry_run:
+        description: 'Csak próba (nem küld semmit, csak kiírja)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-reminder
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Függőségek telepítése
+        run: npm install --omit=dev --no-audit --no-fund
+
+      - name: Emlékeztető kiküldése
+        run: node scripts/daily-reminder.mjs
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          FORCE_SEND: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          APP_URL: ${{ secrets.APP_URL }}
+          # Opcionális csatornák – ha nincs beállítva, kimaradnak
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+          NTFY_TOKEN: ${{ secrets.NTFY_TOKEN }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}

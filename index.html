@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Családi Naptár</title>
+  <meta name="description" content="Családi teendők, bevásárlós előkészületek és névnapok egy helyen." />
+  <meta name="theme-color" content="#4f46e5" />
+
+  <!-- PWA / iOS -->
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Családi Naptár" />
+
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <link rel="stylesheet" href="./css/app.css" />
+</head>
+<body class="text-slate-800 antialiased">
+  <!-- Fejléc -->
+  <header class="app-header safe-top sticky top-0 z-20">
+    <div class="max-w-xl mx-auto px-4 h-14 flex items-center justify-between">
+      <h1 class="font-bold text-lg flex items-center gap-2 text-white">
+        <span class="header-logo" aria-hidden="true">📅</span> Családi Naptár
+      </h1>
+      <span id="sync-status" class="sync-pill"></span>
+    </div>
+  </header>
+
+  <main class="max-w-xl mx-auto px-4 pt-4 pb-28">
+    <section id="view-calendar" data-view="calendar"></section>
+    <section id="view-family" data-view="family" hidden></section>
+    <section id="view-settings" data-view="settings" hidden></section>
+  </main>
+
+  <!-- Alsó navigáció -->
+  <nav class="app-nav safe-bottom fixed bottom-0 inset-x-0 z-20">
+    <div class="max-w-xl mx-auto grid grid-cols-3">
+      <button class="tab-btn" data-tab="calendar"><span class="text-xl">🗓️</span><span>Naptár</span></button>
+      <button class="tab-btn" data-tab="family"><span class="text-xl">🎂</span><span>Családi dátumok</span></button>
+      <button class="tab-btn" data-tab="settings"><span class="text-xl">⚙️</span><span>Beállítások</span></button>
+    </div>
+  </nav>
+
+  <!-- Nap nézet (alsó lap) -->
+  <div id="day-sheet" class="sheet-backdrop" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="day-title">
+      <div class="sheet-handle"></div>
+      <div id="day-content"></div>
+    </div>
+  </div>
+
+  <!-- Általános választó dialógus -->
+  <div id="dialog" class="sheet-backdrop items-center" hidden>
+    <div class="bg-white rounded-2xl w-[min(92vw,380px)] p-5 shadow-xl">
+      <p id="dialog-title" class="font-semibold mb-4"></p>
+      <div id="dialog-buttons" class="flex flex-col gap-2"></div>
+    </div>
+  </div>
+
+  <!-- Bejelentkezés -->
+  <div id="login" class="login-bg fixed inset-0 z-40 flex items-center justify-center p-6" hidden>
+    <form id="login-form" class="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+      <div class="text-center">
+        <div class="text-4xl">📅</div>
+        <h2 class="text-xl font-bold mt-2">Családi Naptár</h2>
+        <p class="text-sm text-slate-500">Jelentkezz be a családi fiókoddal</p>
+      </div>
+      <label class="block">
+        <span class="label">E-mail</span>
+        <input name="email" type="email" autocomplete="email" required class="input" />
+      </label>
+      <label class="block">
+        <span class="label">Jelszó</span>
+        <input name="password" type="password" autocomplete="current-password" minlength="6" required class="input" />
+      </label>
+      <button type="submit" class="btn-primary w-full">Bejelentkezés</button>
+      <p id="login-error" class="text-sm text-red-600 text-center"></p>
+      <p class="text-xs text-slate-400 text-center">Fiókot a család adminisztrátora hoz létre.</p>
+    </form>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

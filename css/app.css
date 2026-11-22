@@ -1,0 +1,164 @@
+/* Kiegészítő stílusok a Tailwind mellé (a CDN-es Tailwind nem dolgozza fel az @apply-t külső fájlban). */
+:root {
+  --indigo: #4f46e5;
+  --todo: #0ea5e9;
+  --prep: #f59e0b;
+  --event: #ec4899;
+}
+
+html { -webkit-tap-highlight-color: transparent; background: #eef0fb; }
+body { overscroll-behavior-y: none; background: transparent; min-height: 100vh; }
+
+/* Háttér: pasztell színátmenet + lágy színfoltok.
+   Külön rögzített rétegen, mert iOS-en a background-attachment: fixed nem működik. */
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(circle at 10% 8%, rgba(129, 140, 248, .35), transparent 42%),
+    radial-gradient(circle at 92% 30%, rgba(244, 114, 182, .25), transparent 40%),
+    radial-gradient(circle at 20% 85%, rgba(56, 189, 248, .22), transparent 45%),
+    radial-gradient(circle at 85% 95%, rgba(251, 191, 36, .18), transparent 40%),
+    linear-gradient(160deg, #eef2ff 0%, #f5f3ff 45%, #fdf2f8 100%);
+}
+
+/* Fejléc */
+.app-header {
+  background: linear-gradient(120deg, #4f46e5 0%, #7c3aed 55%, #db2777 120%);
+  box-shadow: 0 4px 20px rgba(79, 70, 229, .25);
+}
+.header-logo {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 10px; background: rgba(255, 255, 255, .2);
+}
+.sync-pill {
+  font-size: .7rem; color: #fff; background: rgba(255, 255, 255, .18);
+  padding: 2px 10px; border-radius: 999px;
+}
+.sync-pill:empty { display: none; }
+
+/* Alsó navigáció: üveghatás */
+.app-nav {
+  background: rgba(255, 255, 255, .8); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid rgba(199, 210, 254, .7); box-shadow: 0 -4px 20px rgba(79, 70, 229, .08);
+}
+.login-bg { background: linear-gradient(160deg, #e0e7ff 0%, #f5f3ff 50%, #fce7f3 100%); }
+
+/* Szekciócímek kis színes jelöléssel */
+main h2.font-bold { display: flex; align-items: center; gap: .5rem; color: #312e81; }
+main h2.mt-6::before {
+  content: ''; width: 4px; height: 1.1em; border-radius: 4px;
+  background: linear-gradient(#6366f1, #ec4899);
+}
+[hidden] { display: none !important; }
+
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Űrlap elemek */
+.label { display: block; font-size: .8rem; font-weight: 600; color: #475569; margin-bottom: .25rem; }
+.input {
+  width: 100%; border: 1px solid #cbd5e1; border-radius: .75rem; padding: .6rem .8rem;
+  font-size: 16px; /* iOS ne zoomoljon */ background: #fff; color: inherit;
+}
+.input:focus { outline: 2px solid var(--indigo); outline-offset: 1px; border-color: transparent; }
+
+.btn-primary, .btn-ghost, .btn-danger, .btn-soft {
+  border-radius: .75rem; padding: .65rem 1rem; font-weight: 600; transition: transform .05s, opacity .15s;
+}
+.btn-primary { background: linear-gradient(120deg, #4f46e5, #7c3aed); color: #fff; box-shadow: 0 3px 10px rgba(79, 70, 229, .3); }
+.btn-ghost { background: transparent; color: var(--indigo); }
+.btn-soft { background: #eef2ff; color: #3730a3; }
+.btn-danger { background: #fee2e2; color: #b91c1c; }
+.btn-primary:active, .btn-ghost:active, .btn-danger:active, .btn-soft:active { transform: scale(.98); }
+button:disabled { opacity: .5; }
+
+/* Alsó navigáció */
+.tab-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: .5rem 0 .6rem; font-size: .7rem; color: #64748b;
+}
+.tab-btn.active { color: var(--indigo); font-weight: 700; }
+.tab-btn > span:first-child { padding: 2px 14px; border-radius: 999px; transition: background .2s; }
+.tab-btn.active > span:first-child { background: #e0e7ff; }
+
+/* Naptár */
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-day {
+  aspect-ratio: 1 / 1.05; border-radius: .75rem; background: rgba(255, 255, 255, .9); border: 1px solid #e0e7ff;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  padding-top: .35rem; font-size: .9rem; position: relative;
+  box-shadow: 0 1px 3px rgba(79, 70, 229, .08); transition: transform .1s, box-shadow .15s;
+}
+button.cal-day:hover { box-shadow: 0 4px 12px rgba(79, 70, 229, .18); }
+button.cal-day:active { transform: scale(.95); }
+.cal-day.weekend { background: rgba(253, 242, 248, .9); border-color: #fbcfe8; }
+.cal-day.today {
+  border: none; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, .45);
+}
+.cal-day.today .dot-done { background: rgba(255, 255, 255, .6); }
+.cal-day.empty { background: transparent; border: none; box-shadow: none; }
+.cal-dots { display: flex; gap: 3px; margin-top: auto; margin-bottom: .4rem; min-height: 7px; }
+.dot { width: 7px; height: 7px; border-radius: 999px; }
+.dot-todo { background: var(--todo); }
+.dot-done { background: #cbd5e1; }
+.dot-prep { background: var(--prep); }
+.dot-prepstart { border: 1.5px solid var(--prep); background: transparent; }
+.dot-event { background: var(--event); }
+.cal-icon { position: absolute; top: 2px; right: 4px; font-size: .65rem; }
+
+/* Kapcsoló */
+.switch { position: relative; width: 46px; height: 28px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch span {
+  position: absolute; inset: 0; background: #cbd5e1; border-radius: 999px; transition: .2s; cursor: pointer;
+}
+.switch span::before {
+  content: ''; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px;
+  background: #fff; border-radius: 999px; transition: .2s; box-shadow: 0 1px 2px rgba(0,0,0,.2);
+}
+.switch input:checked + span { background: var(--indigo); }
+.switch input:checked + span::before { transform: translateX(18px); }
+
+/* Szegmentált választó */
+.seg { display: inline-flex; background: #f1f5f9; border-radius: .7rem; padding: 3px; }
+.seg label { position: relative; }
+.seg input { position: absolute; opacity: 0; }
+.seg span { display: block; padding: .3rem .75rem; border-radius: .55rem; font-size: .85rem; cursor: pointer; }
+.seg input:checked + span { background: #fff; color: var(--indigo); font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+
+/* Alsó lap */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 30; background: rgba(15, 23, 42, .4);
+  display: flex; justify-content: center; align-items: flex-end;
+}
+.sheet {
+  background: #fff; width: 100%; max-width: 36rem; max-height: 92vh; overflow-y: auto;
+  border-radius: 1.25rem 1.25rem 0 0; padding: .5rem 1rem calc(1.25rem + env(safe-area-inset-bottom));
+  animation: up .2s ease-out;
+}
+.sheet-handle { width: 40px; height: 5px; border-radius: 999px; background: #cbd5e1; margin: .25rem auto .75rem; }
+@keyframes up { from { transform: translateY(30px); opacity: .6; } to { transform: none; opacity: 1; } }
+
+.card {
+  background: rgba(255, 255, 255, .88); border: 1px solid rgba(224, 231, 255, .9); border-radius: 1rem; padding: 1rem;
+  box-shadow: 0 2px 10px rgba(79, 70, 229, .07);
+}
+.badge { display: inline-flex; align-items: center; gap: 2px; font-size: .7rem; padding: 1px 7px; border-radius: 999px; font-weight: 600; }
+.badge-prep { background: #fef3c7; color: #92400e; }
+.badge-rec { background: #e0f2fe; color: #075985; }
+.badge-event { background: #fce7f3; color: #9d174d; }
+
+.check {
+  width: 26px; height: 26px; border-radius: 999px; border: 2px solid #94a3b8; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; color: #fff; font-size: .85rem;
+}
+.check.on { background: #10b981; border-color: #10b981; }
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 50;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  background: #1e293b; color: #fff; padding: .6rem 1rem; border-radius: .75rem; font-size: .9rem;
+  max-width: 90vw; box-shadow: 0 4px 16px rgba(0,0,0,.2);
+}

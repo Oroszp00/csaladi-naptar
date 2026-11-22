@@ -1,0 +1,22 @@
+{
+  "name": "csaladi-naptar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Családi teendő- és névnapkezelő PWA (GitHub Pages + Supabase + Web Push)",
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes serve@14.2.4 -l 5173 .",
+    "reminder": "node scripts/daily-reminder.mjs",
+    "reminder:dry": "DRY_RUN=true FORCE_SEND=true node scripts/daily-reminder.mjs",
+    "icons": "node scripts/generate-icons.mjs",
+    "vapid": "npx --yes web-push@3.6.7 generate-vapid-keys",
+    "test": "node --test tests/logic.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.16",
+    "web-push": "^3.6.7"
+  }
+}
