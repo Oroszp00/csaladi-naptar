@@ -98,10 +98,22 @@ button.cal-day:active { transform: scale(.95); }
   box-shadow: 0 4px 14px rgba(99, 102, 241, .45);
 }
 .cal-day.today .dot-done { background: rgba(255, 255, 255, .6); }
+/* A mai napon a pöttyök fehér kerettel, hogy a lila háttéren is látszanak */
+.cal-day.today .dot { box-shadow: 0 0 0 1.5px #fff; }
+.cal-day.today { outline: 3px solid rgba(139, 92, 246, .35); outline-offset: 2px; }
+.today-label {
+  margin-top: 1px; font-size: .55rem; font-weight: 800; letter-spacing: .06em;
+  background: #fff; color: #6d28d9; border-radius: 999px; padding: 0 5px; line-height: 1.45;
+}
+.today-chip {
+  margin-top: 2px; font-size: .75rem; font-weight: 700; color: #5b21b6;
+  background: rgba(237, 233, 254, .9); border: 1px solid #ddd6fe; border-radius: 999px; padding: 1px 10px;
+}
 .cal-day.empty { background: transparent; border: none; box-shadow: none; }
 .cal-dots { display: flex; gap: 3px; margin-top: auto; margin-bottom: .4rem; min-height: 7px; }
 .dot { width: 7px; height: 7px; border-radius: 999px; }
 .dot-todo { background: var(--todo); }
+.dot-weekly { background: #16a34a; }
 .dot-done { background: #cbd5e1; }
 .dot-prep { background: var(--prep); }
 .dot-prepstart { border: 1.5px solid var(--prep); background: transparent; }
@@ -147,7 +159,7 @@ button.cal-day:active { transform: scale(.95); }
 }
 .badge { display: inline-flex; align-items: center; gap: 2px; font-size: .7rem; padding: 1px 7px; border-radius: 999px; font-weight: 600; }
 .badge-prep { background: #fef3c7; color: #92400e; }
-.badge-rec { background: #e0f2fe; color: #075985; }
+.badge-rec { background: #dcfce7; color: #166534; }
 .badge-event { background: #fce7f3; color: #9d174d; }
 
 .check {
@@ -182,6 +194,8 @@ input[type="time"].input { padding-left: .5rem; padding-right: .5rem; }
 }
 .upcoming-items { padding: 0 .8rem .55rem; font-size: .9rem; }
 .upcoming-items li { padding: .15rem 0; }
+.li-icon { display: inline-flex; justify-content: center; align-items: center; width: 1.25rem; margin-right: .25rem; flex-shrink: 0; }
+.upcoming-note { font-size: .78rem; color: #64748b; margin-left: 1.5rem; line-height: 1.3; white-space: pre-line; }
 /* Három váltakozó szín: kék → türkiz → lila */
 .alt-0 { --c: #0284c7; --bg: #e0f2fe; }  /* kék */
 .alt-1 { --c: #0d9488; --bg: #ccfbf1; }  /* türkiz */

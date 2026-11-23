@@ -134,8 +134,10 @@ function renderCalendar() {
     const weekday = (offset + d - 1) % 7;
 
     let dots = '';
-    if (open.some((x) => !x.needs_prep)) dots += '<span class="dot dot-todo"></span>';
-    else if (dayTodos.length && !open.length) dots += '<span class="dot dot-done"></span>';
+    const openPlain = open.filter((x) => !x.needs_prep);
+    if (openPlain.some((x) => x.recurrence !== 'weekly')) dots += '<span class="dot dot-todo"></span>';
+    if (openPlain.some((x) => x.recurrence === 'weekly')) dots += '<span class="dot dot-weekly"></span>';
+    if (dayTodos.length && !open.length) dots += '<span class="dot dot-done"></span>';
     if (hasPrep) dots += '<span class="dot dot-prep"></span>';
     if (prepStart) dots += '<span class="dot dot-prepstart"></span>';
     if (hasEvent) dots += '<span class="dot dot-event"></span>';
@@ -147,9 +149,10 @@ function renderCalendar() {
     ].filter(Boolean).join(', ');
 
     cells += `
-      <button class="cal-day ${weekday >= 5 ? 'weekend' : ''} ${iso === t ? 'today' : ''}" data-day="${iso}" aria-label="${esc(label)}">
+      <button class="cal-day ${weekday >= 5 ? 'weekend' : ''} ${iso === t ? 'today' : ''}" data-day="${iso}" aria-label="${esc(iso === t ? `Ma, ${label}` : label)}" ${iso === t ? 'aria-current="date"' : ''}>
         ${hasEvent ? '<span class="cal-icon">🎉</span>' : hasPrep ? '<span class="cal-icon">🛒</span>' : ''}
         <span>${d}</span>
+        ${iso === t ? '<span class="today-label">MA</span>' : ''}
         <span class="cal-dots">${dots}</span>
       </button>`;
   }
@@ -161,7 +164,7 @@ function renderCalendar() {
       <button class="btn-soft px-3" data-act="prev" aria-label="Előző hónap">‹</button>
       <div class="text-center">
         <div class="font-bold text-lg">${year}. ${HU_MONTHS[month]}</div>
-        <button class="text-xs text-indigo-600" data-act="today">Ugrás a mai napra</button>
+        <button class="today-chip" data-act="today">📍 Ma: ${formatHuDate(t)}</button>
       </div>
       <button class="btn-soft px-3" data-act="next" aria-label="Következő hónap">›</button>
     </div>
@@ -173,6 +176,7 @@ function renderCalendar() {
 
     <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 mt-3">
       <span class="flex items-center gap-1"><span class="dot dot-todo"></span>teendő</span>
+      <span class="flex items-center gap-1"><span class="dot dot-weekly"></span>heti teendő</span>
       <span class="flex items-center gap-1"><span class="dot dot-prep"></span>vásárlós teendő</span>
       <span class="flex items-center gap-1"><span class="dot dot-prepstart"></span>előkészület kezdete</span>
       <span class="flex items-center gap-1"><span class="dot dot-event"></span>családi esemény</span>
@@ -207,13 +211,27 @@ function renderUpcoming(fromIso) {
   const rows = [];
   for (const t of state.todos) {
     for (const d of occurrencesInRange(t, addDays(fromIso, 1), to)) {
-      if (!isDoneOn(t, d)) rows.push({ date: d, todo: t, html: `${t.needs_prep ? '🛒' : '•'} ${timeTag(t)}${esc(t.title)}` });
+      if (isDoneOn(t, d)) continue;
+      const bullet = t.needs_prep
+        ? '<span class="li-icon">🛒</span>'
+        : `<span class="li-icon"><span class="dot ${t.recurrence === 'weekly' ? 'dot-weekly' : 'dot-todo'}"></span></span>`;
+      rows.push({
+        date: d,
+        todo: t,
+        html: `<div class="flex items-center">${bullet}${timeTag(t)}<span>${esc(t.title)}</span></div>`
+          + (t.notes ? `<div class="upcoming-note">${esc(t.notes)}</div>` : ''),
+      });
     }
   }
   for (const u of upcomingEvents(state.events, addDays(fromIso, 1))) {
     if (u.date > to) continue;
     const ty = EVENT_TYPES[u.event.event_type] || EVENT_TYPES.nevnap;
-    rows.push({ date: u.date, todo: null, html: `${ty.icon} ${esc(u.event.name)} ${ty.poss}` });
+    rows.push({
+      date: u.date,
+      todo: null,
+      html: `<div class="flex items-center"><span class="li-icon">${ty.icon}</span><span>${esc(u.event.name)} ${ty.poss}</span></div>`
+        + (u.event.notes ? `<div class="upcoming-note">${esc(u.event.notes)}</div>` : ''),
+    });
   }
   if (!rows.length) return '<div class="card text-sm text-slate-500">Nincs bejegyzés a következő két hétben.</div>';
   // Nap szerint, azon belül: családi események elöl, majd teendők időrendben, az idő nélküliek a végén.
@@ -767,8 +785,28 @@ start(await db.getUser()).then(handleDeepLink);
 
 window.addEventListener('online', loadData);
 window.addEventListener('offline', () => setSync('offline'));
+
+// Napváltás: ha az app éjfélen át nyitva marad (iOS-en a Főképernyős app sokáig „él”),
+// a mai nap kiemelése és az összefoglaló lépjen át az új napra.
+let shownToday = today();
+function checkDayChange() {
+  const t = today();
+  if (t === shownToday) return false;
+  const prev = parseISO(shownToday);
+  if (state.month.getFullYear() === prev.getFullYear() && state.month.getMonth() === prev.getMonth()) {
+    const d = parseISO(t);
+    state.month = new Date(d.getFullYear(), d.getMonth(), 1);
+  }
+  shownToday = t;
+  render();
+  return true;
+}
+setInterval(checkDayChange, 60 * 1000);
+
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && state.user) loadData();
+  if (document.visibilityState !== 'visible') return;
+  checkDayChange();
+  if (state.user) loadData();
 });
 
 // SW üzenet (értesítésre kattintás, ha az app már nyitva van)
