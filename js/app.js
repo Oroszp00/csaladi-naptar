@@ -215,18 +215,17 @@ function renderUpcoming(fromIso) {
   if (!rows.length) return '<div class="card text-sm text-slate-500">Nincs bejegyzés a következő két hétben.</div>';
   rows.sort((a, b) => a.date.localeCompare(b.date));
 
-  // Napok szerint csoportosítva, a hét napjai szerinti színes sávval.
+  // Napok szerint csoportosítva, három váltakozó színnel (kék, türkiz, lila).
   const groups = new Map();
   for (const r of rows) {
     if (!groups.has(r.date)) groups.set(r.date, []);
     groups.get(r.date).push(r.html);
   }
-  return `<div class="space-y-2">${[...groups].map(([date, items]) => {
-    const wd = parseISO(date).getDay(); // 0 = vasárnap
+  return `<div class="space-y-2">${[...groups].map(([date, items], idx) => {
     const rel = diffDays(fromIso, date);
     const relText = rel <= 2 ? relativeDayLabel(rel) : '';
     return `
-      <button class="upcoming-day wd-${wd} w-full text-left" data-day="${date}">
+      <button class="upcoming-day alt-${idx % 3} w-full text-left" data-day="${date}">
         <div class="upcoming-head">
           <span>${formatHuDate(date)}</span>
           ${relText ? `<span class="upcoming-rel">${relText}</span>` : ''}
