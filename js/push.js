@@ -5,7 +5,23 @@ import { isCloud, savePushSubscription, deletePushSubscription } from './db.js';
 export async function registerSW() {
   if (!('serviceWorker' in navigator)) return null;
   try {
-    return await navigator.serviceWorker.register('./sw.js', { scope: './' });
+    const hadController = !!navigator.serviceWorker.controller;
+    const reg = await navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' });
+
+    // Új verzió esetén egyszer automatikusan újratöltjük az oldalt, hogy az új kód fusson.
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloaded) return;
+      reloaded = true;
+      location.reload();
+    });
+
+    // Az app előtérbe kerülésekor (iOS-en a Főképernyős app sokáig „él”) nézzük meg, van-e frissítés.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+    reg.update().catch(() => {});
+    return reg;
   } catch (err) {
     console.warn('SW regisztráció sikertelen', err);
     return null;

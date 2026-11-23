@@ -1,6 +1,6 @@
 // Service Worker: offline gyorsítótár + Web Push értesítések.
 // Módosítás után emeld a verziót, hogy a kliensek frissüljenek.
-const VERSION = 'v1.3.1';
+const VERSION = 'v1.4.0';
 const CACHE = `csaladi-naptar-${VERSION}`;
 
 const APP_SHELL = [
@@ -40,9 +40,11 @@ self.addEventListener('fetch', (event) => {
   if (url.hostname.endsWith('supabase.co') || url.hostname.endsWith('supabase.in')) return;
 
   // Saját fájlok: network-first (friss tartalom), offline esetén cache.
+  // cache: 'no-cache' → a böngésző HTTP-cache-ét is megkerüli (a GitHub Pages 10 percig
+  // cache-elhetőnek jelöli a fájlokat), így egy új verzió azonnal megjelenik.
   if (url.origin === self.location.origin) {
     event.respondWith(
-      fetch(req)
+      fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then((res) => {
           if (res.ok) {
             const copy = res.clone();
