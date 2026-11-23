@@ -152,7 +152,6 @@ function renderCalendar() {
       <button class="cal-day ${weekday >= 5 ? 'weekend' : ''} ${iso === t ? 'today' : ''}" data-day="${iso}" aria-label="${esc(iso === t ? `Ma, ${label}` : label)}" ${iso === t ? 'aria-current="date"' : ''}>
         ${hasEvent ? '<span class="cal-icon">🎉</span>' : hasPrep ? '<span class="cal-icon">🛒</span>' : ''}
         <span>${d}</span>
-        ${iso === t ? '<span class="today-label">MA</span>' : ''}
         <span class="cal-dots">${dots}</span>
       </button>`;
   }
@@ -164,7 +163,7 @@ function renderCalendar() {
       <button class="btn-soft px-3" data-act="prev" aria-label="Előző hónap">‹</button>
       <div class="text-center">
         <div class="font-bold text-lg">${year}. ${HU_MONTHS[month]}</div>
-        <button class="today-chip" data-act="today">📍 Ma: ${formatHuDate(t)}</button>
+        <button class="text-xs text-indigo-600" data-act="today">Ugrás a mai napra</button>
       </div>
       <button class="btn-soft px-3" data-act="next" aria-label="Következő hónap">›</button>
     </div>

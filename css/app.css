@@ -101,14 +101,6 @@ button.cal-day:active { transform: scale(.95); }
 /* A mai napon a pöttyök fehér kerettel, hogy a lila háttéren is látszanak */
 .cal-day.today .dot { box-shadow: 0 0 0 1.5px #fff; }
 .cal-day.today { outline: 3px solid rgba(139, 92, 246, .35); outline-offset: 2px; }
-.today-label {
-  margin-top: 1px; font-size: .55rem; font-weight: 800; letter-spacing: .06em;
-  background: #fff; color: #6d28d9; border-radius: 999px; padding: 0 5px; line-height: 1.45;
-}
-.today-chip {
-  margin-top: 2px; font-size: .75rem; font-weight: 700; color: #5b21b6;
-  background: rgba(237, 233, 254, .9); border: 1px solid #ddd6fe; border-radius: 999px; padding: 1px 10px;
-}
 .cal-day.empty { background: transparent; border: none; box-shadow: none; }
 .cal-dots { display: flex; gap: 3px; margin-top: auto; margin-bottom: .4rem; min-height: 7px; }
 .dot { width: 7px; height: 7px; border-radius: 999px; }
