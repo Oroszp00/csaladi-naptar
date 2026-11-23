@@ -156,6 +156,14 @@ button.cal-day:active { transform: scale(.95); }
 }
 .check.on { background: #10b981; border-color: #10b981; }
 
+/* Időpont címke a teendők előtt */
+.time-tag {
+  display: inline-block; font-variant-numeric: tabular-nums; font-size: .75rem; font-weight: 700;
+  color: #3730a3; background: #e0e7ff; border-radius: .4rem; padding: 0 .35rem; margin-right: .4rem;
+  text-decoration: none;
+}
+input[type="time"].input { padding-left: .5rem; padding-right: .5rem; }
+
 /* Következő 14 nap – napokra bontva, váltakozó színekkel */
 .upcoming-day {
   --c: #6366f1; --bg: #eef2ff;

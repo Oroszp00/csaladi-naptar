@@ -64,3 +64,18 @@ test('napi összefoglaló', () => {
   assert.match(lines[0], /MA van Nagyi születésnapja/);
   assert.match(lines[1], /Bence születésnapja 3 nap múlva/);
 });
+
+test('időrend: időponttal elöl, idő nélküliek a végén', async () => {
+  const { compareByTime, formatTime } = await import('../js/logic.js');
+  const todos = [
+    { title: 'Idő nélkül A', due_date: '2026-11-23', recurrence: 'none', done: false, created_at: '2026-11-20T10:00:00Z' },
+    { title: 'Délután', due_date: '2026-11-23', due_time: '16:30:00', recurrence: 'none', done: false },
+    { title: 'Reggel', due_date: '2026-11-23', due_time: '07:45:00', recurrence: 'none', done: false },
+    { title: 'Idő nélkül B', due_date: '2026-11-23', recurrence: 'none', done: false, created_at: '2026-11-21T10:00:00Z' },
+  ];
+  assert.deepEqual([...todos].sort(compareByTime).map((t) => t.title), ['Reggel', 'Délután', 'Idő nélkül A', 'Idő nélkül B']);
+  assert.equal(formatTime('07:45:00'), '07:45');
+  const d = buildDigest(todos, [], '2026-11-23');
+  assert.deepEqual(d.today.map((x) => x.todo.title), ['Reggel', 'Délután', 'Idő nélkül A', 'Idő nélkül B']);
+  assert.match(digestLines(d)[0], /Ma 07:45: Reggel/);
+});

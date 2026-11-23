@@ -5,8 +5,11 @@ import {
   EVENT_TYPES, HU_MONTHS, HU_WEEKDAYS_SHORT,
   toISO, parseISO, addDays, diffDays, formatHuDate, relativeDayLabel,
   todosOn, isDoneOn, occursOn, occurrencesInRange, prepRemindersOn, isPrepStartDay,
-  eventsOn, upcomingEvents, buildDigest,
+  eventsOn, upcomingEvents, buildDigest, formatTime, compareByTime,
 } from './logic.js';
+
+/** Időpont címke a teendő elé (üres, ha nincs megadva). */
+const timeTag = (t) => (formatTime(t.due_time) ? `<span class="time-tag">${formatTime(t.due_time)}</span>` : '');
 
 // ---------------------------------------------------------------------------
 // Állapot
@@ -190,7 +193,7 @@ function renderDigest(d) {
     items.push(`<li class="flex gap-2"><span>${ty.icon}</span><span><b>${esc(e.event.name)}</b> ${ty.poss} – ${e.daysLeft === 0 ? '<b class="text-pink-600">MA!</b>' : relativeDayLabel(e.daysLeft)}</span></li>`);
   }
   for (const x of d.today) {
-    items.push(`<li class="flex gap-2"><span>${x.todo.needs_prep ? '🛒' : '✅'}</span><span>${esc(x.todo.title)}</span></li>`);
+    items.push(`<li class="flex gap-2 items-center"><span>${x.todo.needs_prep ? '🛒' : '✅'}</span>${timeTag(x.todo)}<span>${esc(x.todo.title)}</span></li>`);
   }
   for (const p of d.prep) {
     items.push(`<li class="flex gap-2"><span>🛒</span><span>Készülj: <b>${esc(p.todo.title)}</b> – ${relativeDayLabel(p.daysLeft)} <span class="text-slate-400">(${formatHuDate(p.date, false)})</span></span></li>`);
@@ -204,16 +207,19 @@ function renderUpcoming(fromIso) {
   const rows = [];
   for (const t of state.todos) {
     for (const d of occurrencesInRange(t, addDays(fromIso, 1), to)) {
-      if (!isDoneOn(t, d)) rows.push({ date: d, html: `${t.needs_prep ? '🛒' : '•'} ${esc(t.title)}` });
+      if (!isDoneOn(t, d)) rows.push({ date: d, todo: t, html: `${t.needs_prep ? '🛒' : '•'} ${timeTag(t)}${esc(t.title)}` });
     }
   }
   for (const u of upcomingEvents(state.events, addDays(fromIso, 1))) {
     if (u.date > to) continue;
     const ty = EVENT_TYPES[u.event.event_type] || EVENT_TYPES.nevnap;
-    rows.push({ date: u.date, html: `${ty.icon} ${esc(u.event.name)} ${ty.poss}` });
+    rows.push({ date: u.date, todo: null, html: `${ty.icon} ${esc(u.event.name)} ${ty.poss}` });
   }
   if (!rows.length) return '<div class="card text-sm text-slate-500">Nincs bejegyzés a következő két hétben.</div>';
-  rows.sort((a, b) => a.date.localeCompare(b.date));
+  // Nap szerint, azon belül: családi események elöl, majd teendők időrendben, az idő nélküliek a végén.
+  rows.sort((a, b) => a.date.localeCompare(b.date)
+    || (a.todo ? 1 : 0) - (b.todo ? 1 : 0)
+    || (a.todo && b.todo ? compareByTime(a.todo, b.todo) : 0));
 
   // Napok szerint csoportosítva, három váltakozó színnel (kék, türkiz, lila).
   const groups = new Map();
@@ -257,7 +263,7 @@ function closeDay() {
 function renderDay() {
   const iso = state.selected;
   const dayTodos = todosOn(state.todos, iso)
-    .sort((a, b) => Number(isDoneOn(a, iso)) - Number(isDoneOn(b, iso)));
+    .sort((a, b) => Number(isDoneOn(a, iso)) - Number(isDoneOn(b, iso)) || compareByTime(a, b));
   const dayEvents = eventsOn(state.events, iso);
   const preps = prepRemindersOn(state.todos, iso);
   const editing = state.todos.find((t) => t.id === state.editingTodo) || null;
@@ -270,7 +276,7 @@ function renderDay() {
       <li class="flex items-start gap-3 py-2">
         <button class="check ${done ? 'on' : ''} mt-0.5" data-act="toggle" data-id="${t.id}" aria-label="${done ? 'Visszavonás' : 'Kész'}">${done ? '✓' : ''}</button>
         <button class="flex-1 text-left" data-act="edit" data-id="${t.id}">
-          <div class="${done ? 'line-through text-slate-400' : 'font-medium'}">${esc(t.title)}</div>
+          <div class="flex items-center ${done ? 'line-through text-slate-400' : 'font-medium'}">${timeTag(t)}<span>${esc(t.title)}</span></div>
           ${t.notes ? `<div class="text-xs text-slate-500">${esc(t.notes)}</div>` : ''}
           <div class="flex gap-1 mt-1 flex-wrap">
             ${t.needs_prep ? `<span class="badge badge-prep">🛒 ${t.prep_days} nappal előre</span>` : ''}
@@ -309,10 +315,19 @@ function renderDay() {
       <h3 class="font-semibold">${editing ? 'Teendő szerkesztése' : 'Új teendő'}</h3>
       <input name="title" class="input" placeholder="pl. Gyümölcs az oviba" required maxlength="200" value="${esc(editing?.title)}" />
       <input name="notes" class="input" placeholder="Megjegyzés (opcionális)" maxlength="500" value="${esc(editing?.notes)}" />
-      <label class="block">
-        <span class="label">${editing?.recurrence === 'weekly' ? 'Sorozat kezdőnapja' : 'Dátum'}</span>
-        <input name="due_date" type="date" class="input" required value="${editing?.due_date || iso}" />
-      </label>
+      <div class="grid grid-cols-[1fr_auto] gap-3">
+        <label class="block min-w-0">
+          <span class="label">${editing?.recurrence === 'weekly' ? 'Sorozat kezdőnapja' : 'Dátum'}</span>
+          <input name="due_date" type="date" class="input" required value="${editing?.due_date || iso}" />
+        </label>
+        <label class="block">
+          <span class="label">Időpont <span class="font-normal text-slate-400">(opcionális)</span></span>
+          <div class="flex items-center gap-1">
+            <input name="due_time" type="time" class="input w-[7.5rem]" value="${formatTime(editing?.due_time)}" />
+            <button type="button" class="text-slate-400 px-1 text-lg" data-act="clear-time" aria-label="Időpont törlése" ${editing?.due_time ? '' : 'hidden'}>✕</button>
+          </div>
+        </label>
+      </div>
 
       <div class="flex items-center justify-between gap-3">
         <div>
@@ -354,6 +369,9 @@ function renderDay() {
   };
   updateHint();
   form.due_date.addEventListener('change', updateHint);
+  form.due_time.addEventListener('input', () => {
+    form.querySelector('[data-act=clear-time]').hidden = !form.due_time.value;
+  });
   form.needs_prep.addEventListener('change', () => { $('#prep-days').hidden = !form.needs_prep.checked; });
   form.weekly.addEventListener('change', () => { $('#rec-end').hidden = !form.weekly.checked; });
   form.addEventListener('submit', onTodoSubmit);
@@ -367,6 +385,7 @@ async function onTodoSubmit(e) {
     title: f.title.value.trim(),
     notes: f.notes.value.trim() || null,
     due_date: f.due_date.value,
+    due_time: f.due_time.value || null,
     needs_prep: f.needs_prep.checked,
     prep_days: Number(f.querySelector('[name=prep_days]:checked')?.value || 7),
     recurrence: weekly ? 'weekly' : 'none',
@@ -651,6 +670,7 @@ document.addEventListener('click', async (e) => {
     case 'delete': await deleteTodo(id); break;
     case 'edit': state.editingTodo = id; renderDay(); $('#todo-form').scrollIntoView({ behavior: 'smooth' }); break;
     case 'cancel-edit': state.editingTodo = null; renderDay(); break;
+    case 'clear-time': { const f = $('#todo-form'); f.due_time.value = ''; actEl.hidden = true; break; }
     case 'new-event': state.showEventForm = true; state.editingEvent = null; render(); break;
     case 'edit-event': state.editingEvent = id; state.showEventForm = true; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); break;
     case 'cancel-event': state.editingEvent = null; state.showEventForm = false; render(); break;

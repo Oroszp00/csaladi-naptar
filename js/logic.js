@@ -66,6 +66,21 @@ export function relativeDayLabel(days) {
 
 const isWeekly = (t) => t.recurrence === 'weekly';
 
+/** 'HH:MM:SS' vagy 'HH:MM' -> 'HH:MM' (üres, ha nincs időpont). */
+export function formatTime(t) {
+  return t ? String(t).slice(0, 5) : '';
+}
+
+/** Rendezés időpont szerint: az időponttal rendelkezők elöl, időrendben; az idő nélküliek a végén. */
+export function compareByTime(a, b) {
+  const ta = formatTime(a.due_time);
+  const tb = formatTime(b.due_time);
+  if (ta && tb && ta !== tb) return ta.localeCompare(tb);
+  if (ta && !tb) return -1;
+  if (!ta && tb) return 1;
+  return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+}
+
 /** Az adott napon esedékes-e a teendő (heti ismétlődést is kezelve). */
 export function occursOn(todo, iso) {
   if (!isWeekly(todo)) return todo.due_date === iso;
@@ -114,7 +129,7 @@ export function prepRemindersOn(todos, iso) {
       if (!isDoneOn(t, occ)) out.push({ todo: t, date: occ, daysLeft: diffDays(iso, occ) });
     }
   }
-  return out.sort((a, b) => a.daysLeft - b.daysLeft);
+  return out.sort((a, b) => a.daysLeft - b.daysLeft || compareByTime(a.todo, b.todo));
 }
 
 /** Igaz, ha az adott nap egy előkészítési ablak kezdőnapja (naptár-jelöléshez). */
@@ -167,6 +182,7 @@ export function upcomingEvents(events, fromIso) {
 export function buildDigest(todos, events, todayIso) {
   const today = todosOn(todos, todayIso)
     .filter((t) => !isDoneOn(t, todayIso))
+    .sort(compareByTime)
     .map((t) => ({ todo: t, date: todayIso }));
 
   const prep = prepRemindersOn(todos, todayIso);
@@ -194,7 +210,8 @@ export function digestLines(d) {
     );
   }
   for (const x of d.today) {
-    lines.push(`${x.todo.needs_prep ? '🛒' : '✅'} Ma: ${x.todo.title}`);
+    const time = formatTime(x.todo.due_time);
+    lines.push(`${x.todo.needs_prep ? '🛒' : '✅'} Ma${time ? ` ${time}` : ''}: ${x.todo.title}`);
   }
   for (const p of d.prep) {
     lines.push(`🛒 Előkészület: ${p.todo.title} – ${relativeDayLabel(p.daysLeft)} (${formatHuDate(p.date, false)})`);

@@ -1,6 +1,6 @@
 // Service Worker: offline gyorsítótár + Web Push értesítések.
 // Módosítás után emeld a verziót, hogy a kliensek frissüljenek.
-const VERSION = 'v1.4.0';
+const VERSION = 'v1.5.0';
 const CACHE = `csaladi-naptar-${VERSION}`;
 
 const APP_SHELL = [

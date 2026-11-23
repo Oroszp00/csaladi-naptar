@@ -30,6 +30,8 @@ create table if not exists public.todos (
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
+-- Opcionális időpont (v1.5): régebbi telepítésnél is hozzáadja az oszlopot
+alter table public.todos add column if not exists due_time time;
 create index if not exists todos_due_date_idx on public.todos (due_date);
 drop trigger if exists todos_updated_at on public.todos;
 create trigger todos_updated_at before update on public.todos
