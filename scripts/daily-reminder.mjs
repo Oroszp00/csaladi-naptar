@@ -87,17 +87,19 @@ async function main() {
   const today = env.TODAY || todayInTZ(TZ);
   log(`Dátum (Budapest): ${today}`);
 
-  const [todos, events, subs] = await Promise.all([
+  const [todos, events, subs, notes] = await Promise.all([
     sb('todos?select=*'),
     sb('family_events?select=*'),
     sb('push_subscriptions?select=id,endpoint,p256dh,auth'),
+    // Napi jegyzet (ha a tábla még nem létezik, ne álljon le az értesítés)
+    sb(`day_notes?select=day,note&day=eq.${today}`).catch((err) => { log(`day_notes kihagyva: ${err.message}`); return []; }),
   ]);
-  log(`Betöltve: ${todos.length} teendő, ${events.length} családi dátum, ${subs.length} push feliratkozás.`);
+  log(`Betöltve: ${todos.length} teendő, ${events.length} családi dátum, ${notes.length} mai jegyzet, ${subs.length} push feliratkozás.`);
 
   // ---------------------------------------------------------------------------
   // 3) Összefoglaló összeállítása
   // ---------------------------------------------------------------------------
-  const digest = buildDigest(todos, events, today);
+  const digest = buildDigest(todos, events, today, notes);
   const lines = digestLines(digest);
 
   if (digestIsEmpty(digest) && !FORCE) {

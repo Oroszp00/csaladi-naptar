@@ -19,6 +19,7 @@ const state = {
   user: null,
   todos: [],
   events: [],
+  notes: [],            // napi jegyzetek: { day, note }
   tab: 'calendar',
   month: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   selected: null,       // kiválasztott nap ISO
@@ -80,9 +81,15 @@ async function guard(fn, okMsg) {
 async function loadData() {
   setSync(db.isCloud ? 'szinkronizálás…' : 'helyi mód');
   try {
-    const [todos, events] = await Promise.all([db.list('todos'), db.list('family_events')]);
+    const [todos, events, notes] = await Promise.all([
+      db.list('todos'),
+      db.list('family_events'),
+      // A napi jegyzetek hiánya (pl. még nem futott le az SQL) ne akassza meg az appot.
+      db.list('day_notes').catch((err) => { console.warn('day_notes', err); return state.notes; }),
+    ]);
     state.todos = todos;
     state.events = events;
+    state.notes = notes;
     if (db.isCloud) setSync(navigator.onLine ? '● szinkronban' : 'offline');
   } catch (err) {
     console.error(err);
@@ -156,7 +163,7 @@ function renderCalendar() {
       </button>`;
   }
 
-  const digest = buildDigest(state.todos, state.events, t);
+  const digest = buildDigest(state.todos, state.events, t, state.notes);
 
   $('#view-calendar').innerHTML = `
     <div class="flex items-center justify-between mb-3">
@@ -201,12 +208,19 @@ function renderDigest(d) {
   for (const p of d.prep) {
     items.push(`<li class="flex gap-2"><span>🛒</span><span>Készülj: <b>${esc(p.todo.title)}</b> – ${relativeDayLabel(p.daysLeft)} <span class="text-slate-400">(${formatHuDate(p.date, false)})</span></span></li>`);
   }
-  if (!items.length) return '<div class="card text-sm text-slate-500">Mára nincs teendő és közelgő esemény. 🌿</div>';
-  return `<ul class="card space-y-2 text-sm">${items.join('')}</ul>`;
+  const noteHtml = d.note
+    ? `<button class="note-strip" data-act="edit-note" data-date="${today()}">📝 ${esc(d.note)}</button>`
+    : '';
+  if (!items.length) {
+    return `${noteHtml}<div class="card text-sm text-slate-500">Mára nincs teendő és közelgő esemény. 🌿</div>`;
+  }
+  return `${noteHtml}<ul class="card space-y-2 text-sm">${items.join('')}</ul>`;
 }
 
+const noteOn = (iso) => state.notes.find((n) => n.day === iso)?.note || '';
+
 function renderUpcoming(fromIso) {
-  const to = addDays(fromIso, 13);
+  const to = addDays(fromIso, 14);
   const rows = [];
   for (const t of state.todos) {
     for (const d of occurrencesInRange(t, addDays(fromIso, 1), to)) {
@@ -232,31 +246,78 @@ function renderUpcoming(fromIso) {
         + (u.event.notes ? `<div class="upcoming-note">${esc(u.event.notes)}</div>` : ''),
     });
   }
-  if (!rows.length) return '<div class="card text-sm text-slate-500">Nincs bejegyzés a következő két hétben.</div>';
   // Nap szerint, azon belül: családi események elöl, majd teendők időrendben, az idő nélküliek a végén.
   rows.sort((a, b) => a.date.localeCompare(b.date)
     || (a.todo ? 1 : 0) - (b.todo ? 1 : 0)
     || (a.todo && b.todo ? compareByTime(a.todo, b.todo) : 0));
 
-  // Napok szerint csoportosítva, három váltakozó színnel (kék, türkiz, lila).
-  const groups = new Map();
+  const byDay = new Map();
   for (const r of rows) {
-    if (!groups.has(r.date)) groups.set(r.date, []);
-    groups.get(r.date).push(r.html);
+    if (!byDay.has(r.date)) byDay.set(r.date, []);
+    byDay.get(r.date).push(r.html);
   }
-  return `<div class="space-y-2">${[...groups].map(([date, items], idx) => {
+
+  // Mind a 14 nap megjelenik (hogy bármelyikre lehessen jegyzetet írni),
+  // három váltakozó színnel (kék, türkiz, lila); jobb szélen a napi jegyzet.
+  const days = [];
+  for (let d = addDays(fromIso, 1); d <= to; d = addDays(d, 1)) days.push(d);
+
+  return `<div class="space-y-2">${days.map((date, idx) => {
+    const items = byDay.get(date) || [];
+    const note = noteOn(date);
     const rel = diffDays(fromIso, date);
     const relText = rel <= 2 ? relativeDayLabel(rel) : '';
     return `
-      <button class="upcoming-day alt-${idx % 3} w-full text-left" data-day="${date}">
-        <div class="upcoming-head">
-          <span>${formatHuDate(date)}</span>
-          ${relText ? `<span class="upcoming-rel">${relText}</span>` : ''}
-        </div>
-        <ul class="upcoming-items">${items.map((h) => `<li>${h}</li>`).join('')}</ul>
-      </button>`;
+      <div class="upcoming-day alt-${idx % 3} ${items.length ? '' : 'is-empty'}">
+        <button class="upcoming-main" data-day="${date}">
+          <div class="upcoming-head">
+            <span>${formatHuDate(date)}</span>
+            ${relText ? `<span class="upcoming-rel">${relText}</span>` : ''}
+          </div>
+          ${items.length ? `<ul class="upcoming-items">${items.map((h) => `<li>${h}</li>`).join('')}</ul>` : ''}
+        </button>
+        <button class="day-note ${note ? 'has-note' : ''}" data-act="edit-note" data-date="${date}"
+          aria-label="${note ? 'Jegyzet szerkesztése' : 'Jegyzet hozzáadása'}">${note ? esc(note) : '+ jegyzet'}</button>
+      </div>`;
   }).join('')}</div>`;
 }
+
+// ---------------------------------------------------------------------------
+// Napi jegyzet szerkesztése
+// ---------------------------------------------------------------------------
+
+function openNoteEditor(date) {
+  const dlg = $('#note-dialog');
+  const form = $('#note-form');
+  $('#note-title').textContent = `📝 Jegyzet – ${formatHuDate(date)}`;
+  form.note.value = noteOn(date);
+  form.dataset.date = date;
+  $('#note-delete').hidden = !noteOn(date);
+  dlg.hidden = false;
+  setTimeout(() => form.note.focus(), 50);
+}
+
+function closeNoteEditor() {
+  $('#note-dialog').hidden = true;
+}
+
+async function saveNote(date, text) {
+  await guard(async () => {
+    const saved = await db.saveDayNote(date, text);
+    state.notes = state.notes.filter((n) => n.day !== date);
+    if (saved) state.notes.push(saved);
+  }, text.trim() ? 'Jegyzet mentve ✓' : 'Jegyzet törölve');
+  closeNoteEditor();
+  render();
+}
+
+$('#note-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  saveNote(e.target.dataset.date, e.target.note.value);
+});
+$('#note-delete').addEventListener('click', () => saveNote($('#note-form').dataset.date, ''));
+$('#note-cancel').addEventListener('click', closeNoteEditor);
+$('#note-dialog').addEventListener('click', (e) => { if (e.target.id === 'note-dialog') closeNoteEditor(); });
 
 // ---------------------------------------------------------------------------
 // Nap nézet (alsó lap)
@@ -324,6 +385,8 @@ function renderDay() {
       <div class="font-semibold text-amber-800 mb-1">🛒 Előkészület a következő napokra</div>
       <ul class="space-y-1">${preps.map((p) => `<li><button class="text-left" data-day="${p.date}"><b>${esc(p.todo.title)}</b> – ${relativeDayLabel(p.daysLeft)} (${formatHuDate(p.date, false)})</button></li>`).join('')}</ul>
     </div>` : ''}
+
+    <button class="note-strip w-full mb-4 ${noteOn(iso) ? '' : 'is-empty'}" data-act="edit-note" data-date="${iso}">${noteOn(iso) ? `📝 ${esc(noteOn(iso))}` : '📝 Napi jegyzet hozzáadása (pl. gyógyszert hozni)'}</button>
 
     <h3 class="font-semibold text-sm text-slate-500 uppercase tracking-wide">Teendők</h3>
     ${dayTodos.length ? `<ul class="divide-y divide-slate-100">${todoItems}</ul>` : '<p class="text-sm text-slate-400 py-2">Erre a napra nincs teendő.</p>'}
@@ -687,6 +750,7 @@ document.addEventListener('click', async (e) => {
     case 'delete': await deleteTodo(id); break;
     case 'edit': state.editingTodo = id; renderDay(); $('#todo-form').scrollIntoView({ behavior: 'smooth' }); break;
     case 'cancel-edit': state.editingTodo = null; renderDay(); break;
+    case 'edit-note': openNoteEditor(actEl.dataset.date); break;
     case 'clear-time': { const f = $('#todo-form'); f.due_time.value = ''; actEl.hidden = true; break; }
     case 'new-event': state.showEventForm = true; state.editingEvent = null; render(); break;
     case 'edit-event': state.editingEvent = id; state.showEventForm = true; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); break;

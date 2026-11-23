@@ -12,7 +12,7 @@ if (isCloud) {
 }
 export { supabase };
 
-const TABLES = ['todos', 'family_events'];
+const TABLES = ['todos', 'family_events', 'day_notes'];
 const CACHE_PREFIX = 'csn_cache_';
 const LOCAL_PREFIX = 'csn_local_';
 
@@ -119,6 +119,26 @@ export async function remove(table, id) {
   if (error) throw error;
 }
 
+/** Napi jegyzet mentése (üres szöveg = törlés). Egy naphoz egy közös jegyzet tartozik. */
+export async function saveDayNote(day, note) {
+  const text = (note || '').trim();
+  if (!isCloud) {
+    const rows = readLS(LOCAL_PREFIX + 'day_notes').filter((r) => r.day !== day);
+    if (text) rows.push({ day, note: text, created_at: new Date().toISOString() });
+    writeLS(LOCAL_PREFIX + 'day_notes', rows);
+    return text ? { day, note: text } : null;
+  }
+  if (!text) {
+    const { error } = await supabase.from('day_notes').delete().eq('day', day);
+    if (error) throw error;
+    return null;
+  }
+  const { data, error } = await supabase
+    .from('day_notes').upsert({ day, note: text }, { onConflict: 'day' }).select().single();
+  if (error) throw error;
+  return data;
+}
+
 /** Valós idejű szinkron: ha egy másik családtag módosít, frissül a nézet. */
 export function subscribeChanges(onChange) {
   if (!isCloud) return () => {};
@@ -126,6 +146,7 @@ export function subscribeChanges(onChange) {
     .channel('csaladi-naptar')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'family_events' }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'day_notes' }, onChange)
     .subscribe();
   return () => supabase.removeChannel(ch);
 }

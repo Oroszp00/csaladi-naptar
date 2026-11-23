@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   occursOn, occurrencesInRange, isDoneOn, prepRemindersOn, isPrepStartDay,
-  eventDateInYear, nextEventOccurrence, buildDigest, digestLines, addDays, diffDays,
+  eventDateInYear, nextEventOccurrence, buildDigest, digestLines, digestIsEmpty, addDays, diffDays,
 } from '../js/logic.js';
 
 const weekly = { id: 'w', title: 'Úszás', due_date: '2026-11-02', recurrence: 'weekly', done_dates: [], skip_dates: [] };
@@ -78,4 +78,13 @@ test('időrend: időponttal elöl, idő nélküliek a végén', async () => {
   const d = buildDigest(todos, [], '2026-11-23');
   assert.deepEqual(d.today.map((x) => x.todo.title), ['Reggel', 'Délután', 'Idő nélkül A', 'Idő nélkül B']);
   assert.match(digestLines(d)[0], /Ma 07:45: Reggel/);
+});
+
+test('napi jegyzet a reggeli összefoglalóban', () => {
+  const notes = [{ day: '2026-11-24', note: 'Gyógyszert hozni' }, { day: '2026-11-25', note: 'más nap' }];
+  const d = buildDigest([], [], '2026-11-24', notes);
+  assert.equal(d.note, 'Gyógyszert hozni');
+  assert.ok(!digestIsEmpty(d));
+  assert.equal(digestLines(d)[0], '📝 Gyógyszert hozni');
+  assert.ok(digestIsEmpty(buildDigest([], [], '2026-11-26', notes)));
 });

@@ -148,6 +148,20 @@ create table if not exists public.push_subscriptions (
 );
 
 -- -----------------------------------------------------------------------------
+-- 3b) Napi jegyzetek (v1.7) – egy nap = egy közös jegyzet (pl. „gyógyszert hozni”)
+-- -----------------------------------------------------------------------------
+create table if not exists public.day_notes (
+  day         date primary key,
+  note        text not null check (char_length(note) between 1 and 500),
+  updated_by  uuid default auth.uid() references auth.users (id) on delete set null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+drop trigger if exists day_notes_updated_at on public.day_notes;
+create trigger day_notes_updated_at before update on public.day_notes
+  for each row execute function public.set_updated_at();
+
+-- -----------------------------------------------------------------------------
 -- 4) Családtagok engedélylistája
 -- Csak az itt felsorolt e-mail címmel bejelentkezett felhasználók férnek hozzá
 -- az adatokhoz – akkor is, ha valaki valahogy fiókot tudna létrehozni.
@@ -188,6 +202,13 @@ alter table public.todos              enable row level security;
 alter table public.family_events      enable row level security;
 alter table public.push_subscriptions enable row level security;
 alter table public.family_members     enable row level security;  -- nincs policy → appból elérhetetlen
+alter table public.day_notes          enable row level security;
+
+drop policy if exists "family_all_day_notes" on public.day_notes;
+create policy "family_all_day_notes" on public.day_notes
+  for all to authenticated
+  using ((select public.is_family_member()))
+  with check ((select public.is_family_member()));
 
 drop policy if exists "family_all_todos" on public.todos;
 create policy "family_all_todos" on public.todos
@@ -211,10 +232,10 @@ create policy "own_push_subs" on public.push_subscriptions
 
 -- Explicit jogosultságok (a „Grant API access to new tables automatically” kikapcsolva is működjön).
 grant usage on schema public to authenticated, service_role;
-grant select, insert, update, delete on public.todos, public.family_events, public.push_subscriptions to authenticated;
+grant select, insert, update, delete on public.todos, public.family_events, public.push_subscriptions, public.day_notes to authenticated;
 -- A napi értesítő script (GitHub Actions) service_role kulccsal olvas és takarít:
-grant select, insert, update, delete on public.todos, public.family_events, public.push_subscriptions, public.family_members to service_role;
-revoke all on public.todos, public.family_events, public.push_subscriptions, public.family_members from anon;
+grant select, insert, update, delete on public.todos, public.family_events, public.push_subscriptions, public.family_members, public.day_notes to service_role;
+revoke all on public.todos, public.family_events, public.push_subscriptions, public.family_members, public.day_notes from anon;
 revoke all on public.family_members from authenticated;
 
 -- -----------------------------------------------------------------------------
@@ -239,6 +260,10 @@ begin
     alter publication supabase_realtime add table public.family_events;
   exception when duplicate_object then null;
   end;
+  begin
+    alter publication supabase_realtime add table public.day_notes;
+  exception when duplicate_object then null;
+  end;
 end $$;
 ```
 </details>
@@ -250,6 +275,7 @@ end $$;
 | `todos` | Teendők. Heti ismétlődésnél a `due_date` a sorozat első napja; a kipipált alkalmak a `done_dates`, a törölt alkalmak a `skip_dates` tömbben vannak. |
 | `family_events` | Névnapok, születésnapok, évfordulók – csak hónap + nap, évente ismétlődik. |
 | `push_subscriptions` | Eszközönként egy Web Push feliratkozás. A lejártakat a napi script automatikusan törli. |
+| `day_notes` | Napi közös jegyzetek (egy nap = egy jegyzet), a 14 napos lista jobb szélén és a reggeli értesítésben jelennek meg. |
 | `family_members` | Engedélylista: csak az itt szereplő e-mail címekkel lehet az adatokhoz hozzáférni. Az appból nem olvasható és nem módosítható. |
 
 **Jogosultságok (RLS) – kettős védelem:**

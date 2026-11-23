@@ -61,6 +61,20 @@
     </div>
   </div>
 
+  <!-- Napi jegyzet szerkesztő -->
+  <div id="note-dialog" class="sheet-backdrop items-center note-backdrop" hidden>
+    <form id="note-form" class="bg-white rounded-2xl w-[min(92vw,400px)] p-5 shadow-xl space-y-3" role="dialog" aria-modal="true" aria-labelledby="note-title">
+      <p id="note-title" class="font-semibold"></p>
+      <textarea name="note" class="input" rows="3" maxlength="500"
+        placeholder="pl. gyógyszert hozni, Bencét vinni edzésre, Annát hozni oviból"></textarea>
+      <div class="flex gap-2">
+        <button type="submit" class="btn-primary flex-1">Mentés</button>
+        <button type="button" id="note-cancel" class="btn-soft">Mégse</button>
+        <button type="button" id="note-delete" class="btn-danger">Törlés</button>
+      </div>
+    </form>
+  </div>
+
   <!-- Bejelentkezés -->
   <div id="login" class="login-bg fixed inset-0 z-40 flex items-center justify-center p-6" hidden>
     <form id="login-form" class="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">

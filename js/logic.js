@@ -179,7 +179,8 @@ export function upcomingEvents(events, fromIso) {
 // Napi összefoglaló (értesítő script és a „Közelgő” panel használja)
 // ---------------------------------------------------------------------------
 
-export function buildDigest(todos, events, todayIso) {
+/** @param notes napi jegyzetek ({ day, note }) – opcionális */
+export function buildDigest(todos, events, todayIso, notes = []) {
   const today = todosOn(todos, todayIso)
     .filter((t) => !isDoneOn(t, todayIso))
     .sort(compareByTime)
@@ -191,16 +192,19 @@ export function buildDigest(todos, events, todayIso) {
     (x) => x.daysLeft <= (x.event.remind_days ?? 3),
   );
 
-  return { today, prep, events: familyEvents };
+  const note = notes.find((n) => n.day === todayIso)?.note || null;
+
+  return { today, prep, events: familyEvents, note };
 }
 
 export function digestIsEmpty(d) {
-  return d.today.length === 0 && d.prep.length === 0 && d.events.length === 0;
+  return d.today.length === 0 && d.prep.length === 0 && d.events.length === 0 && !d.note;
 }
 
 /** Ember által olvasható sorok a push/e-mail/ntfy üzenetekhez. */
 export function digestLines(d) {
   const lines = [];
+  if (d.note) lines.push(`📝 ${d.note}`);
   for (const e of d.events) {
     const t = EVENT_TYPES[e.event.event_type] || EVENT_TYPES.nevnap;
     lines.push(
