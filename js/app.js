@@ -214,10 +214,26 @@ function renderUpcoming(fromIso) {
   }
   if (!rows.length) return '<div class="card text-sm text-slate-500">Nincs bejegyzés a következő két hétben.</div>';
   rows.sort((a, b) => a.date.localeCompare(b.date));
-  return `<ul class="card divide-y divide-slate-100 text-sm p-0">${rows.map((r) => `
-    <li><button class="w-full text-left px-4 py-2 flex justify-between gap-3" data-day="${r.date}">
-      <span>${r.html}</span><span class="text-slate-400 whitespace-nowrap">${formatHuDate(r.date, false)}</span>
-    </button></li>`).join('')}</ul>`;
+
+  // Napok szerint csoportosítva, a hét napjai szerinti színes sávval.
+  const groups = new Map();
+  for (const r of rows) {
+    if (!groups.has(r.date)) groups.set(r.date, []);
+    groups.get(r.date).push(r.html);
+  }
+  return `<div class="space-y-2">${[...groups].map(([date, items]) => {
+    const wd = parseISO(date).getDay(); // 0 = vasárnap
+    const rel = diffDays(fromIso, date);
+    const relText = rel <= 2 ? relativeDayLabel(rel) : '';
+    return `
+      <button class="upcoming-day wd-${wd} w-full text-left" data-day="${date}">
+        <div class="upcoming-head">
+          <span>${formatHuDate(date)}</span>
+          ${relText ? `<span class="upcoming-rel">${relText}</span>` : ''}
+        </div>
+        <ul class="upcoming-items">${items.map((h) => `<li>${h}</li>`).join('')}</ul>
+      </button>`;
+  }).join('')}</div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -309,7 +325,7 @@ function renderDay() {
       <div id="prep-days" class="flex items-center gap-2 text-sm" ${editing?.needs_prep ? '' : 'hidden'}>
         <span class="text-slate-500">Előrejelzés:</span>
         <div class="seg">
-          ${[3, 5, 7].map((n) => `<label><input type="radio" name="prep_days" value="${n}" ${prepDays === n ? 'checked' : ''} /><span>${n} nap</span></label>`).join('')}
+          ${[1, 3, 5, 7].map((n) => `<label><input type="radio" name="prep_days" value="${n}" ${prepDays === n ? 'checked' : ''} /><span>${n} nap</span></label>`).join('')}
         </div>
       </div>
 

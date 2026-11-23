@@ -156,6 +156,32 @@ button.cal-day:active { transform: scale(.95); }
 }
 .check.on { background: #10b981; border-color: #10b981; }
 
+/* Következő 14 nap – napokra bontva, a hét napjai szerinti színnel */
+.upcoming-day {
+  --c: #6366f1; --bg: #eef2ff;
+  display: block; border-radius: .9rem; overflow: hidden;
+  background: var(--bg); border-left: 5px solid var(--c);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, .07); transition: transform .1s;
+}
+.upcoming-day:active { transform: scale(.98); }
+.upcoming-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: .45rem .8rem .2rem; font-size: .78rem; font-weight: 700; color: var(--c);
+}
+.upcoming-rel {
+  font-size: .68rem; font-weight: 700; color: #fff; background: var(--c);
+  padding: 1px 8px; border-radius: 999px; text-transform: none;
+}
+.upcoming-items { padding: 0 .8rem .55rem; font-size: .9rem; }
+.upcoming-items li { padding: .15rem 0; }
+.wd-1 { --c: #4f46e5; --bg: #eef2ff; }  /* hétfő */
+.wd-2 { --c: #0284c7; --bg: #e0f2fe; }  /* kedd */
+.wd-3 { --c: #0d9488; --bg: #ccfbf1; }  /* szerda */
+.wd-4 { --c: #65a30d; --bg: #ecfccb; }  /* csütörtök */
+.wd-5 { --c: #d97706; --bg: #fef3c7; }  /* péntek */
+.wd-6 { --c: #db2777; --bg: #fce7f3; }  /* szombat */
+.wd-0 { --c: #9333ea; --bg: #f3e8ff; }  /* vasárnap */
+
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 50;
   bottom: calc(5.5rem + env(safe-area-inset-bottom));

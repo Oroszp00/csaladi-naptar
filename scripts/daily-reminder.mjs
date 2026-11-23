@@ -15,6 +15,7 @@
 //   DRY_RUN     – 'true': csak kiírja, nem küld semmit
 //   TODAY       – teszteléshez felülírható dátum (YYYY-MM-DD)
 
+import { writeFileSync } from 'node:fs';
 import webpush from 'web-push';
 import {
   buildDigest, digestIsEmpty, digestLines, todayInTZ, formatHuDate,
@@ -33,21 +34,33 @@ function log(...a) { console.log('[reminder]', ...a); }
 function die(msg) { console.error(`[reminder] HIBA: ${msg}`); process.exit(1); }
 
 // ---------------------------------------------------------------------------
-// 1) Időkapu: 07:00 helyi idő téli (CET) és nyári (CEST) időszámításban is.
-//    A workflow két cron-nal fut (05:00 és 06:00 UTC); csak az a futás küld,
-//    amelyik az aktuális időszámítás szerint 07:00-nak felel meg.
+// 1) Időkapu: a workflow reggel negyedóránként több időpontban is elindul
+//    (a GitHub az ütemezett futásokat néha késlelteti vagy kihagyja).
+//    Csak a budapesti 07:00–10:59 ablakban küldünk; hogy naponta csak egyszer,
+//    azt a workflow egy napi „már elküldve” jelzővel (cache) biztosítja.
+//    Ez téli (CET) és nyári (CEST) időszámításban is helyesen működik.
 // ---------------------------------------------------------------------------
-function budapestOffsetHours(now = new Date()) {
-  const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' }).format(now));
-  return (h - now.getUTCHours() + 24) % 24;
+const WINDOW_START = Number(env.SEND_WINDOW_START || 7);
+const WINDOW_END = Number(env.SEND_WINDOW_END || 11); // kizárólagos
+const MARKER = env.SENT_MARKER_FILE || '';             // ide írjuk, ha a mai nap kész
+
+function budapestHour(now = new Date()) {
+  return Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' }).format(now));
 }
 
-if (env.SCHEDULE && !FORCE) {
-  const expected = budapestOffsetHours() === 2 ? '0 5 * * *' : '0 6 * * *';
-  if (env.SCHEDULE.trim() !== expected) {
-    log(`Ez a futás (${env.SCHEDULE}) nem a mai 07:00-s idősáv (${expected}) – kihagyva.`);
+if (!FORCE) {
+  const h = budapestHour();
+  if (h < WINDOW_START || h >= WINDOW_END) {
+    log(`Budapesti idő ${h} óra – a küldési ablakon (${WINDOW_START}:00–${WINDOW_END}:00) kívül, kihagyva.`);
     process.exit(0);
   }
+}
+
+/** A mai nap feldolgozva (elküldve vagy nem volt mit küldeni) → a későbbi futások kihagyják. */
+function markDone() {
+  if (!MARKER || FORCE || DRY) return;
+  writeFileSync(MARKER, `${new Date().toISOString()}\n`);
+  log('A mai nap feldolgozva, a további reggeli futások kihagyják.');
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +102,7 @@ async function main() {
 
   if (digestIsEmpty(digest) && !FORCE) {
     log('Ma nincs mit jelezni – nem küldünk értesítést.');
+    markDone();
     return;
   }
 
@@ -194,8 +208,11 @@ async function main() {
   // Hibával lépjünk ki, ha volt csatorna, de egyik sem sikerült – így a GitHub Actions jelez.
   const anyChannel = subs.length || env.NTFY_TOPIC || env.SMTP_HOST;
   if (anyChannel && !results.push && !results.ntfy && !results.email && results.pushFailed !== results.removed) {
+    // Nem jelöljük késznek → a következő reggeli futás újrapróbálja.
     console.error('[reminder] HIBA: Egyetlen értesítést sem sikerült kiküldeni.');
     process.exitCode = 1;
+  } else {
+    markDone();
   }
 }
 

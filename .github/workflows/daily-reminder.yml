@@ -2,14 +2,15 @@ name: Napi emlékeztető
 
 on:
   schedule:
-    # A GitHub cron mindig UTC-ben fut. Két időpont kell, hogy télen és nyáron is
-    # 07:00 legyen Budapesten; a script csak az aktuálisan érvényeset engedi tovább.
-    - cron: '0 5 * * *'   # 07:00 CEST (nyári időszámítás)
-    - cron: '0 6 * * *'   # 07:00 CET  (téli időszámítás)
+    # A GitHub cron UTC-ben fut, és az ütemezett futásokat terhelés idején késleltetheti
+    # vagy kihagyhatja (főleg egész órakor). Ezért reggel negyedóránként, „páratlan” percekben
+    # próbálkozunk; a script csak a budapesti 07:00–10:59 ablakban küld, és naponta csak
+    # egyszer (lásd a „már elküldve” jelzőt lent). Téli és nyári időszámításban is működik.
+    - cron: '3,18,33,48 5-9 * * *'
   workflow_dispatch:
     inputs:
       force:
-        description: 'Küldés most (időkapu kihagyása, üres napon is)'
+        description: 'Küldés most (időablak és napi jelző kihagyása, üres napon is küld)'
         type: boolean
         default: true
       dry_run:
@@ -19,6 +20,7 @@ on:
 
 permissions:
   contents: read
+  actions: write   # a napi „már elküldve” jelző (cache) mentéséhez
 
 concurrency:
   group: daily-reminder
@@ -28,22 +30,44 @@ jobs:
   remind:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      FORCE_SEND: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
     steps:
+      - name: Mai dátum (Budapest)
+        id: day
+        run: echo "date=$(TZ=Europe/Budapest date +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Ma már elküldtük?
+        id: sent
+        uses: actions/cache/restore@v4
+        with:
+          path: .reminder-sent
+          key: reminder-sent-${{ steps.day.outputs.date }}
+
+      - name: Kihagyás
+        if: steps.sent.outputs.cache-hit == 'true' && env.FORCE_SEND != 'true'
+        run: echo "A mai összefoglaló már kiment ($(cat .reminder-sent)) – nincs teendő."
+
       - uses: actions/checkout@v4
+        if: steps.sent.outputs.cache-hit != 'true' || env.FORCE_SEND == 'true'
+        with:
+          clean: false
 
       - uses: actions/setup-node@v4
+        if: steps.sent.outputs.cache-hit != 'true' || env.FORCE_SEND == 'true'
         with:
           node-version: 20
 
       - name: Függőségek telepítése
+        if: steps.sent.outputs.cache-hit != 'true' || env.FORCE_SEND == 'true'
         run: npm install --omit=dev --no-audit --no-fund
 
       - name: Emlékeztető kiküldése
+        if: steps.sent.outputs.cache-hit != 'true' || env.FORCE_SEND == 'true'
         run: node scripts/daily-reminder.mjs
         env:
-          SCHEDULE: ${{ github.event.schedule }}
-          FORCE_SEND: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          SENT_MARKER_FILE: .reminder-sent
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
@@ -60,3 +84,10 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+
+      - name: Napi jelző mentése
+        if: hashFiles('.reminder-sent') != '' && steps.sent.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .reminder-sent
+          key: reminder-sent-${{ steps.day.outputs.date }}

@@ -14,7 +14,7 @@ Magyar nyelvű, mobilra optimalizált **PWA** a család közös teendőihez, a b
 |---|---|
 | 🗓️ **Havi naptár** | Hétfővel kezdődő hónapnézet, pöttyökkel: 🔵 teendő, 🟠 vásárlós teendő, ⭕ előkészület kezdőnapja, 🩷 családi esemény |
 | ✅ **Nap nézet** | Egy napra koppintva: új teendő, pipálás, szerkesztés, törlés |
-| 🛒 **Vásárlást / előkészületet igényel** | Kapcsoló; 3 / 5 / **7** (alapértelmezett) nappal előre jelez – a naptárban, a napi összefoglalóban és push-ban is |
+| 🛒 **Vásárlást / előkészületet igényel** | Kapcsoló; 1 / 3 / 5 / **7** (alapértelmezett) nappal előre jelez – a naptárban, a napi összefoglalóban és push-ban is |
 | 🔁 **Heti ismétlődés** | Opcionális záró dátummal; alkalmanként pipálható; törléskor: „csak ez”, „ettől kezdve”, „teljes sorozat” |
 | 🎂 **Családi dátumok** | Névnap / Születésnap / Évforduló hónap + nap formában, évente ismétlődik; figyelmeztetés alapból **3 nappal előre + aznap** (0–14 nap állítható); feb. 29. nem szökőévben feb. 28-án jelez |
 | ☀️ **Mai összefoglaló + következő 14 nap** | A naptár alatt |
@@ -371,7 +371,7 @@ Repó → **Actions → Napi emlékeztető → Run workflow**
 Az ütemezett futás minden reggel **7:00-kor** (budapesti idő) történik. Az értesítés csak akkor megy ki, ha:
 
 - van mára nyitott teendő, **vagy**
-- van vásárlós teendő a következő 3/5/7 napban (amit a teendőnél beállítottál), **vagy**
+- van vásárlós teendő a következő 1/3/5/7 napban (amit a teendőnél beállítottál), **vagy**
 - egy családi esemény a beállított figyelmeztetési ablakon belül van (alapból 3 nap + aznap).
 
 ---
@@ -419,9 +419,9 @@ Ha a `js/config.js` üres, az app **helyi módban** indul (bejelentkezés nélk�
 
 ## Tudnivalók és hibaelhárítás
 
-**Téli/nyári időszámítás:** a GitHub cron mindig UTC-ben fut, ezért a workflow 05:00 és 06:00 UTC-kor is elindul. A script megnézi, melyik felel meg aktuálisan 7:00-nak Budapesten, és csak az küld értesítést, így nincs dupla értesítés.
+**Ütemezés, téli/nyári időszámítás:** a GitHub cron mindig UTC-ben fut, és az ütemezett futásokat terhelés idején késleltetheti vagy ki is hagyhatja. Ezért a workflow reggel negyedóránként elindul (05:03–09:48 UTC). A script csak a budapesti 07:00–10:59 ablakban küld, és egy napi „már elküldve” jelző (Actions cache) biztosítja, hogy naponta csak egy értesítés menjen ki. Ha egy futás kimarad, a következő negyedórás pótolja.
 
-**Késik a reggeli értesítés:** a GitHub ütemezett futásai terhelés esetén 5–30 percet is késhetnek. Ez normális.
+**Késik a reggeli értesítés:** a GitHub ütemezett futásai terhelés esetén 5–30 percet is késhetnek, ilyenkor az értesítés 7:00 helyett pl. 7:20-kor jön. Ez normális. A kézi „Run workflow” (force) futás nem állítja be a napi jelzőt, így a próbák nem akadályozzák a reggeli értesítést.
 
 **Leállt az ütemezés:** nyilvános repóban a GitHub **60 nap inaktivitás** (nincs commit) után automatikusan letiltja az ütemezett workflow-kat, erről e-mailt is küld. Ilyenkor: Actions → Napi emlékeztető → **Enable workflow**. Bármilyen commit is újraindítja a számlálót.
 
