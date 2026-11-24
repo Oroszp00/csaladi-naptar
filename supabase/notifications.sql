@@ -78,16 +78,17 @@ set search_path = ''
 as $$
 declare
   k text;
+  n jsonb := to_jsonb(new);  -- jsonb-n keresztül olvassuk a mezőket, mert nem minden táblában ugyanazok vannak
 begin
   if auth.uid() is null then
     return new;
   end if;
   -- Jegyzet módosításánál csak akkor szólunk, ha a szöveg tényleg változott.
-  if tg_table_name = 'day_notes' and tg_op = 'UPDATE' and new.note is not distinct from old.note then
+  if tg_op = 'UPDATE' and (n ->> 'note') is not distinct from (to_jsonb(old) ->> 'note') then
     return new;
   end if;
 
-  k := case when tg_table_name = 'day_notes' then new.day::text else new.id::text end;
+  k := coalesce(n ->> 'id', n ->> 'day');
   perform public.dispatch_reminder('change', jsonb_build_object(
     'table', tg_table_name, 'op', tg_op, 'key', k, 'actor', auth.uid()
   ));
@@ -109,9 +110,20 @@ create trigger day_notes_notify_change after insert or update on public.day_note
   for each row execute function public.notify_change();
 
 -- -----------------------------------------------------------------------------
--- Kezdődő teendők: percenként fut, és a ~2 perc múlva kezdődőket küldi
--- (a GitHub-os futás 1–2 percig tart, így az értesítés nagyjából a kezdésre érkezik).
+-- Kezdődő teendők: percenként fut. Azokat küldi, amelyek a következő 2 percben
+-- kezdődnek, vagy az előző percben kezdődtek (pl. épp most vették fel) – a GitHub-os
+-- futás 1–2 perc, így az értesítés nagyjából a kezdésre érkezik.
+-- A start_notifications tábla jegyzi, mire ment már ki értesítés (nincs dupla).
 -- -----------------------------------------------------------------------------
+create table if not exists public.start_notifications (
+  todo_id  uuid not null references public.todos (id) on delete cascade,
+  day      date not null,
+  sent_at  timestamptz not null default now(),
+  primary key (todo_id, day)
+);
+alter table public.start_notifications enable row level security;  -- nincs policy → appból elérhetetlen
+revoke all on public.start_notifications from anon, authenticated;
+
 create or replace function public.check_starting_todos()
 returns void
 language plpgsql
@@ -119,30 +131,46 @@ security definer
 set search_path = ''
 as $$
 declare
-  target timestamp := (now() at time zone 'Europe/Budapest') + interval '2 minutes';
-  d date := target::date;
-  hm text := to_char(target, 'HH24:MI');
-  ids uuid[];
+  now_local timestamp := now() at time zone 'Europe/Budapest';
+  win_from  timestamp := now_local - interval '1 minute';
+  win_to    timestamp := now_local + interval '2 minutes';
+  rec record;
+  ids uuid[] := '{}';
+  first_day date;
 begin
-  select array_agg(t.id) into ids
-  from public.todos t
-  where t.due_time is not null
-    and to_char(t.due_time, 'HH24:MI') = hm
-    and (
-      (t.recurrence = 'none' and t.due_date = d and not t.done)
-      or (
-        t.recurrence = 'weekly'
-        and t.due_date <= d
-        and (d - t.due_date) % 7 = 0
-        and (t.recurrence_end is null or d <= t.recurrence_end)
-        and not (d = any (t.skip_dates))
-        and not (d = any (t.done_dates))
+  for rec in
+    select distinct t.id, v.d
+    from public.todos t
+    cross join (values (win_from::date), (win_to::date)) as v(d)
+    where t.due_time is not null
+      and (v.d + t.due_time) >= win_from
+      and (v.d + t.due_time) <  win_to
+      and (
+        (t.recurrence = 'none' and t.due_date = v.d and not t.done)
+        or (
+          t.recurrence = 'weekly'
+          and t.due_date <= v.d
+          and (v.d - t.due_date) % 7 = 0
+          and (t.recurrence_end is null or v.d <= t.recurrence_end)
+          and not (v.d = any (t.skip_dates))
+          and not (v.d = any (t.done_dates))
+        )
       )
-    );
+      and not exists (
+        select 1 from public.start_notifications s where s.todo_id = t.id and s.day = v.d
+      )
+  loop
+    insert into public.start_notifications (todo_id, day) values (rec.id, rec.d) on conflict do nothing;
+    ids := ids || rec.id;
+    first_day := coalesce(first_day, rec.d);
+  end loop;
 
-  if ids is not null then
-    perform public.dispatch_reminder('start', jsonb_build_object('ids', ids, 'date', d));
+  if array_length(ids, 1) > 0 then
+    perform public.dispatch_reminder('start', jsonb_build_object('ids', ids, 'date', first_day));
   end if;
+
+  -- takarítás: 30 napnál régebbi naplóbejegyzések
+  delete from public.start_notifications where day < (now_local::date - 30);
 end;
 $$;
 revoke all on function public.check_starting_todos() from public, anon, authenticated;
