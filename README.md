@@ -402,6 +402,47 @@ Az ütemezett futás minden reggel **7:00-kor** (budapesti idő) történik. Az 
 - van vásárlós teendő a következő 1/3/5/7 napban (amit a teendőnél beállítottál), **vagy**
 - egy családi esemény a beállított figyelmeztetési ablakon belül van (alapból 3 nap + aznap).
 
+### 11. Pontos értesítések: Supabase időzítő (ajánlott)
+
+A GitHub saját ütemezője (cron) gyakran kihagyja vagy órákkal késlelteti a futásokat. Ezért a
+pontos időzítést a Supabase végzi (pg_cron + pg_net), a kiküldést továbbra is a GitHub Actions script.
+Ez három értesítéstípust ad:
+
+| Értesítés | Mikor | Ki kapja |
+|---|---|---|
+| ☀️ Reggeli összefoglaló | 07:00 (téli és nyári időben is) | mindenki |
+| ➕ Új bejegyzés | ha valaki új teendőt, családi dátumot vagy napi jegyzetet vesz fel (ill. módosít egy jegyzetet) | a **többi** családtag |
+| ⏰ Most kezdődik | időpontos teendő kezdésekor (heti ismétlődőnél minden alkalommal, kipipáltnál nem) | mindenki |
+
+**a) GitHub token létrehozása** (ingyenes, legfeljebb 1 évig érvényes):
+
+1. GitHub → jobb fent a profilképed → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**
+2. Token name: `csaladi-naptar-ertesito`, Expiration: **Custom → 1 év**
+3. Repository access: **Only select repositories → csaladi-naptar**
+4. Permissions → Repository permissions → **Actions: Read and write** (a „Metadata: Read-only” magától bekerül)
+5. **Generate token** → másold ki (`github_pat_...`)
+
+**b) Token a Supabase Vaultba** – SQL Editorban (a saját tokeneddel):
+
+```sql
+delete from vault.secrets where name = 'github_dispatch_token';
+select vault.create_secret('github_pat_IDE_A_TOKENT', 'github_dispatch_token', 'Családi Naptár értesítő');
+```
+
+**c) Időzítők és változásfigyelő:** futtasd le a [`supabase/notifications.sql`](supabase/notifications.sql) teljes tartalmát.
+
+**Ellenőrzés** (SQL Editor):
+
+```sql
+select jobname, schedule, active from cron.job;                                      -- 2 sor
+select status_code, content from net._http_response order by created desc limit 5;   -- 204 = rendben
+```
+
+**Token lejáratakor** a GitHub e-mailt küld: hozz létre újat (a) és futtasd le újra a (b) lépést.
+
+> A megjelenő név („chamiegina új teendőt vett fel”) a `family_members.name` mezőből jön, ha üres,
+> az e-mail cím elejéből. Átírás: `update public.family_members set name = 'Anya' where email = '...';`
+
 ---
 
 ## Opcionális csatornák

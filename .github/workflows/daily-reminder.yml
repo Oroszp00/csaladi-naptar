@@ -1,29 +1,41 @@
 name: Napi emlékeztető
 
+# Indítók:
+#  • Supabase pg_cron → workflow_dispatch (pontos): reggel 07:00 (mode=morning),
+#    időpontos teendő kezdése előtt (mode=start)
+#  • Supabase adatbázis-trigger → workflow_dispatch: új bejegyzés (mode=change)
+#  • GitHub schedule: tartalék a reggeli összefoglalóhoz (a GitHub ezt néha kihagyja/késlelteti)
+#  • Kézi indítás: Actions → Run workflow
 on:
   schedule:
-    # A GitHub cron UTC-ben fut, és az ütemezett futásokat terhelés idején késleltetheti
-    # vagy kihagyhatja (főleg egész órakor). Ezért reggel negyedóránként, „páratlan” percekben
-    # próbálkozunk; a script csak a budapesti 07:00–10:59 ablakban küld, és naponta csak
-    # egyszer (lásd a „már elküldve” jelzőt lent). Téli és nyári időszámításban is működik.
     - cron: '3,18,33,48 5-9 * * *'
   workflow_dispatch:
     inputs:
       force:
-        description: 'Küldés most (időablak és napi jelző kihagyása, üres napon is küld)'
+        description: 'Küldés most (reggeli módban: időablak és napi jelző kihagyása, üres napon is küld)'
         type: boolean
         default: true
       dry_run:
         description: 'Csak próba (nem küld semmit, csak kiírja)'
         type: boolean
         default: false
+      mode:
+        description: 'morning = reggeli összefoglaló, change = új bejegyzés, start = kezdődő teendő'
+        type: string
+        default: morning
+      payload:
+        description: 'JSON adat a change/start módhoz (a Supabase tölti ki)'
+        type: string
+        default: ''
 
 permissions:
   contents: read
   actions: write   # a napi „már elküldve” jelző (cache) mentéséhez
 
+# A reggeli futások egymás után jönnek (napi jelző miatt); a change/start értesítések
+# párhuzamosan futhatnak, hogy egyik se vesszen el.
 concurrency:
-  group: daily-reminder
+  group: ${{ (inputs.mode || 'morning') == 'morning' && 'reminder-morning' || format('reminder-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -31,6 +43,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
+      MODE: ${{ inputs.mode || 'morning' }}
+      PAYLOAD: ${{ inputs.payload }}
       FORCE_SEND: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
     steps:
@@ -38,36 +52,38 @@ jobs:
         id: day
         run: echo "date=$(TZ=Europe/Budapest date +%F)" >> "$GITHUB_OUTPUT"
 
-      - name: Ma már elküldtük?
+      - name: Ma már elküldtük a reggeli összefoglalót?
         id: sent
+        if: env.MODE == 'morning'
         uses: actions/cache/restore@v4
         with:
           path: .reminder-sent
           key: reminder-sent-${{ steps.day.outputs.date }}
 
       - name: Kihagyás
-        if: steps.sent.outputs.cache-hit == 'true' && env.FORCE_SEND != 'true'
+        if: env.MODE == 'morning' && steps.sent.outputs.cache-hit == 'true' && env.FORCE_SEND != 'true'
         run: echo "A mai összefoglaló már kiment ($(cat .reminder-sent)) – nincs teendő."
 
       - uses: actions/checkout@v4
-        if: steps.sent.outputs.cache-hit != 'true' || env.FORCE_SEND == 'true'
+        if: env.MODE != 'morning' || steps.sent.outputs.cache-hit != 'true' || env.FORCE_SEND == 'true'
         with:
           clean: false
 
       - uses: actions/setup-node@v4
-        if: steps.sent.outputs.cache-hit != 'true' || env.FORCE_SEND == 'true'
+        if: env.MODE != 'morning' || steps.sent.outputs.cache-hit != 'true' || env.FORCE_SEND == 'true'
         with:
           node-version: 20
+          cache: npm
 
       - name: Függőségek telepítése
-        if: steps.sent.outputs.cache-hit != 'true' || env.FORCE_SEND == 'true'
-        run: npm install --omit=dev --no-audit --no-fund
+        if: env.MODE != 'morning' || steps.sent.outputs.cache-hit != 'true' || env.FORCE_SEND == 'true'
+        run: npm ci --omit=dev --no-audit --no-fund
 
-      - name: Emlékeztető kiküldése
-        if: steps.sent.outputs.cache-hit != 'true' || env.FORCE_SEND == 'true'
+      - name: Értesítés kiküldése
+        if: env.MODE != 'morning' || steps.sent.outputs.cache-hit != 'true' || env.FORCE_SEND == 'true'
         run: node scripts/daily-reminder.mjs
         env:
-          SENT_MARKER_FILE: .reminder-sent
+          SENT_MARKER_FILE: ${{ env.MODE == 'morning' && '.reminder-sent' || '' }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
@@ -86,7 +102,7 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
 
       - name: Napi jelző mentése
-        if: hashFiles('.reminder-sent') != '' && steps.sent.outputs.cache-hit != 'true'
+        if: env.MODE == 'morning' && hashFiles('.reminder-sent') != '' && steps.sent.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: .reminder-sent
